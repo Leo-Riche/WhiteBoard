@@ -3,38 +3,310 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Tableau blanc collaboratif</title>
+  <title>Dessiner & Deviner</title>
   <script src="/socket.io/socket.io.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-100 flex flex-col items-center justify-center min-h-screen p-4">
+<body class="bg-gray-100 min-h-screen p-4">
 
-  <h1 class="text-2xl font-bold mb-4">🖌️ Tableau blanc collaboratif</h1>
+  <h1 class="text-3xl font-bold text-center mb-6">🎨 Dessiner & Deviner</h1>
 
-  <div class="mb-2">
-    <input type="color" id="colorPicker" class="w-12 h-12 p-0 border-none cursor-pointer">
-    <div class="mb-2 flex gap-2">
-      <button id="pencilBtn" class="bg-blue-500 text-white p-2 rounded">✏️ Crayon</button>
-      <button id="eraserBtn" class="bg-gray-500 text-white p-2 rounded">🧽 Gomme</button>
-      <button id="lineBtn" class="bg-green-500 text-white p-2 rounded">📏 Ligne</button>
+  <!-- Modal de connexion -->
+  <div id="joinModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div class="bg-white p-8 rounded-lg shadow-lg max-w-md w-full mx-4">
+      <h2 class="text-2xl font-bold mb-4 text-center">Rejoindre le jeu</h2>
+      <input type="text" id="playerNameInput" placeholder="Votre nom" 
+             class="w-full p-3 border rounded mb-4 text-lg">
+      <button id="joinGameBtn" class="w-full bg-blue-500 text-white p-3 rounded text-lg hover:bg-blue-600">
+        🎮 Rejoindre
+      </button>
     </div>
-    <select id="lineWidth" class="ml-2 p-1 border rounded">
-      <option value="2">Fin</option>
-      <option value="5" selected>Moyen</option>
-      <option value="10">Épais</option>
-    </select>
-    <button id="clearBtn" class="ml-2 bg-red-500 text-white p-2 rounded">Nettoyer</button>
   </div>
 
-  <canvas id="canvas" class="border rounded bg-white" width="800" height="500"></canvas>
+  <!-- Interface principale -->
+  <div id="gameInterface" class="hidden">
+    <div class="flex gap-6 max-w-7xl mx-auto">
+      
+      <!-- Panneau de gauche - Info du jeu -->
+      <div class="w-80 space-y-4">
+        
+        <!-- État du jeu -->
+        <div class="bg-white p-4 rounded-lg shadow">
+          <h3 class="font-bold text-lg mb-2">📊 État du jeu</h3>
+          <div id="gameStatus" class="text-gray-600">En attente de joueurs...</div>
+          <div id="currentDrawer" class="text-blue-600 font-medium mt-2"></div>
+          <div id="wordToGuess" class="text-green-600 font-bold text-xl mt-2"></div>
+          <div id="timer" class="text-red-500 font-mono text-lg mt-2"></div>
+        </div>
+
+        <!-- Liste des joueurs -->
+        <div class="bg-white p-4 rounded-lg shadow">
+          <h3 class="font-bold text-lg mb-2">� Joueurs</h3>
+          <div id="playersList" class="space-y-2"></div>
+        </div>
+
+        <!-- Chat pour deviner -->
+        <div class="bg-white p-4 rounded-lg shadow">
+          <h3 class="font-bold text-lg mb-2">💬 Chat</h3>
+          <div id="chatMessages" class="h-40 overflow-y-auto border p-2 mb-2 bg-gray-50 rounded"></div>
+          <div class="flex gap-2">
+            <input type="text" id="chatInput" placeholder="Devinez le mot..." 
+                   class="flex-1 p-2 border rounded" disabled>
+            <button id="sendChatBtn" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600" disabled>
+              Envoyer
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Zone de dessin -->
+      <div class="flex-1">
+        <!-- Outils de dessin -->
+        <div class="bg-white p-4 rounded-lg shadow mb-4">
+          <div class="flex flex-wrap gap-2 items-center">
+            <input type="color" id="colorPicker" class="w-12 h-12 p-0 border-none cursor-pointer" disabled>
+            <button id="pencilBtn" class="bg-blue-500 text-white p-2 rounded hover:bg-blue-600" disabled>✏️ Crayon</button>
+            <button id="eraserBtn" class="bg-gray-500 text-white p-2 rounded hover:bg-gray-600" disabled>🧽 Gomme</button>
+            <button id="lineBtn" class="bg-green-500 text-white p-2 rounded hover:bg-green-600" disabled>📏 Ligne</button>
+            <select id="lineWidth" class="p-2 border rounded" disabled>
+              <option value="2">Fin</option>
+              <option value="5" selected>Moyen</option>
+              <option value="10">Épais</option>
+            </select>
+            <button id="clearBtn" class="bg-red-500 text-white p-2 rounded hover:bg-red-600" disabled>🗑️ Nettoyer</button>
+          </div>
+        </div>
+
+        <!-- Canvas -->
+        <canvas id="canvas" class="border rounded bg-white shadow-lg mx-auto block" width="800" height="500"></canvas>
+      </div>
+    </div>
+  </div>
 
   <script>
     const socket = io();
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
 
+    // Variables globales
     let drawing = false;
+    let currentTool = 'pencil';
+    let startX, startY;
+    let isDrawer = false;
+    let gameTimer = null;
 
+    // Éléments DOM
+    const joinModal = document.getElementById('joinModal');
+    const gameInterface = document.getElementById('gameInterface');
+    const playerNameInput = document.getElementById('playerNameInput');
+    const joinGameBtn = document.getElementById('joinGameBtn');
+    const gameStatus = document.getElementById('gameStatus');
+    const currentDrawer = document.getElementById('currentDrawer');
+    const wordToGuess = document.getElementById('wordToGuess');
+    const timer = document.getElementById('timer');
+    const playersList = document.getElementById('playersList');
+    const chatMessages = document.getElementById('chatMessages');
+    const chatInput = document.getElementById('chatInput');
+    const sendChatBtn = document.getElementById('sendChatBtn');
+    const colorPicker = document.getElementById('colorPicker');
+    const lineWidth = document.getElementById('lineWidth');
+    const clearBtn = document.getElementById('clearBtn');
+    const pencilBtn = document.getElementById('pencilBtn');
+    const eraserBtn = document.getElementById('eraserBtn');
+    const lineBtn = document.getElementById('lineBtn');
+
+    // Rejoindre le jeu
+    joinGameBtn.addEventListener('click', () => {
+      const name = playerNameInput.value.trim();
+      if (name) {
+        socket.emit('joinGame', name);
+        joinModal.classList.add('hidden');
+        gameInterface.classList.remove('hidden');
+      }
+    });
+
+    playerNameInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        joinGameBtn.click();
+      }
+    });
+
+    // Gestion du chat
+    sendChatBtn.addEventListener('click', sendMessage);
+    chatInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        sendMessage();
+      }
+    });
+
+    function sendMessage() {
+      const message = chatInput.value.trim();
+      if (message) {
+        socket.emit('chatMessage', message);
+        chatInput.value = '';
+      }
+    }
+
+    // Outils de dessin
+    pencilBtn.addEventListener('click', () => {
+      currentTool = 'pencil';
+      updateToolButtons();
+    });
+    eraserBtn.addEventListener('click', () => {
+      currentTool = 'eraser';
+      updateToolButtons();
+    });
+    lineBtn.addEventListener('click', () => {
+      currentTool = 'line';
+      updateToolButtons();
+    });
+
+    function updateToolButtons() {
+      [pencilBtn, eraserBtn, lineBtn].forEach(btn => btn.classList.remove('ring-2', 'ring-yellow-400'));
+      if (currentTool === 'pencil') pencilBtn.classList.add('ring-2', 'ring-yellow-400');
+      if (currentTool === 'eraser') eraserBtn.classList.add('ring-2', 'ring-yellow-400');
+      if (currentTool === 'line') lineBtn.classList.add('ring-2', 'ring-yellow-400');
+    }
+
+    // Dessin sur canvas
+    canvas.addEventListener('mousedown', (e) => {
+      if (!isDrawer) return;
+      
+      drawing = true;
+      ctx.beginPath();
+      startX = e.offsetX;
+      startY = e.offsetY;
+
+      if (currentTool === 'line') return;
+
+      ctx.moveTo(e.offsetX, e.offsetY);
+      socket.emit('draw', {
+        x: e.offsetX,
+        y: e.offsetY,
+        color: currentTool === 'eraser' ? '#FFFFFF' : colorPicker.value,
+        width: currentTool === 'eraser' ? 20 : lineWidth.value,
+        start: true
+      });
+    });
+
+    canvas.addEventListener('mousemove', (e) => {
+      if (!drawing || !isDrawer) return;
+
+      if (currentTool === 'line') return;
+
+      const color = currentTool === 'eraser' ? '#FFFFFF' : colorPicker.value;
+      const width = currentTool === 'eraser' ? 20 : lineWidth.value;
+
+      ctx.lineTo(e.offsetX, e.offsetY);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = width;
+      ctx.lineCap = 'round';
+      ctx.stroke();
+
+      socket.emit('draw', { x: e.offsetX, y: e.offsetY, color, width, start: false });
+    });
+    
+    canvas.addEventListener('mouseup', (e) => {
+      if (!isDrawer) return;
+
+      if (currentTool === 'line') {
+        const color = colorPicker.value;
+        const width = lineWidth.value;
+
+        ctx.strokeStyle = color;
+        ctx.lineWidth = width;
+        ctx.lineCap = 'round';
+
+        ctx.beginPath();
+        ctx.moveTo(startX, startY);
+        ctx.lineTo(e.offsetX, e.offsetY);
+        ctx.stroke();
+
+        socket.emit('draw_line', {
+          startX,
+          startY,
+          endX: e.offsetX,
+          endY: e.offsetY,
+          color,
+          width
+        });
+      }
+      drawing = false;
+    });
+
+    clearBtn.addEventListener('click', () => {
+      if (isDrawer) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        socket.emit('clear');
+      }
+    });
+
+    // Fonction pour activer/désactiver les outils
+    function enableDrawingTools(enabled) {
+      isDrawer = enabled;
+      [colorPicker, pencilBtn, eraserBtn, lineBtn, lineWidth, clearBtn].forEach(element => {
+        element.disabled = !enabled;
+        if (enabled) {
+          element.classList.remove('opacity-50', 'cursor-not-allowed');
+        } else {
+          element.classList.add('opacity-50', 'cursor-not-allowed');
+        }
+      });
+      
+      canvas.style.cursor = enabled ? 'crosshair' : 'not-allowed';
+    }
+
+    function enableChat(enabled) {
+      chatInput.disabled = !enabled;
+      sendChatBtn.disabled = !enabled;
+      if (enabled) {
+        [chatInput, sendChatBtn].forEach(el => el.classList.remove('opacity-50', 'cursor-not-allowed'));
+      } else {
+        [chatInput, sendChatBtn].forEach(el => el.classList.add('opacity-50', 'cursor-not-allowed'));
+      }
+    }
+
+    function addChatMessage(playerName, message, isCorrect = false) {
+      const div = document.createElement('div');
+      div.className = `p-2 rounded mb-1 ${isCorrect ? 'bg-green-100 border-l-4 border-green-500' : 'bg-gray-100'}`;
+      div.innerHTML = `<strong>${playerName}:</strong> ${message} ${isCorrect ? '✅' : ''}`;
+      chatMessages.appendChild(div);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    function updatePlayersList(players, currentDrawerId) {
+      playersList.innerHTML = '';
+      players.forEach(player => {
+        const div = document.createElement('div');
+        const isCurrentDrawer = player.id === currentDrawerId;
+        div.className = `flex justify-between items-center p-2 rounded ${isCurrentDrawer ? 'bg-blue-100 border-l-4 border-blue-500' : 'bg-gray-50'}`;
+        div.innerHTML = `
+          <span>${player.name} ${isCurrentDrawer ? '🎨' : ''}</span>
+          <span class="font-bold text-blue-600">${player.score}pts</span>
+        `;
+        playersList.appendChild(div);
+      });
+    }
+
+    function startTimer(duration) {
+      let timeLeft = duration / 1000;
+      
+      if (gameTimer) clearInterval(gameTimer);
+      
+      gameTimer = setInterval(() => {
+        const minutes = Math.floor(timeLeft / 60);
+        const seconds = timeLeft % 60;
+        timer.textContent = `⏰ ${minutes}:${seconds.toString().padStart(2, '0')}`;
+        
+        if (timeLeft <= 0) {
+          clearInterval(gameTimer);
+          timer.textContent = '⏰ Temps écoulé !';
+        }
+        timeLeft--;
+      }, 1000);
+    }
+
+    // Événements Socket.IO
     socket.on('initCanvas', (history) => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -66,80 +338,66 @@
       });
     });
 
-    const colorPicker = document.getElementById('colorPicker');
-    const lineWidth = document.getElementById('lineWidth');
-    const clearBtn = document.getElementById('clearBtn');
-
-    let currentTool = 'pencil';
-    let startX, startY;
-    
-    const pencilBtn = document.getElementById('pencilBtn');
-    const eraserBtn = document.getElementById('eraserBtn');
-    const lineBtn = document.getElementById('lineBtn');
-    
-    pencilBtn.addEventListener('click', () => currentTool = 'pencil');
-    eraserBtn.addEventListener('click', () => currentTool = 'eraser');
-    lineBtn.addEventListener('click', () => currentTool = 'line');
-    
-    canvas.addEventListener('mousedown', (e) => {
-      drawing = true;
-      ctx.beginPath();
-      startX = e.offsetX;
-      startY = e.offsetY;
-
-      if (currentTool === 'line') return;
-
-      ctx.moveTo(e.offsetX, e.offsetY);
-      socket.emit('draw', {
-        x: e.offsetX,
-        y: e.offsetY,
-        color: currentTool === 'eraser' ? '#FFFFFF' : colorPicker.value,
-        width: currentTool === 'eraser' ? 20 : lineWidth.value,
-        start: true
-      });
+    socket.on('playersUpdate', (data) => {
+      updatePlayersList(data.players, data.currentDrawer);
     });
 
-    canvas.addEventListener('mousemove', (e) => {
-      if (!drawing) return;
-
-      if (currentTool === 'line') return;
-
-      const color = currentTool === 'eraser' ? '#FFFFFF' : colorPicker.value;
-      const width = currentTool === 'eraser' ? 20 : lineWidth.value;
-
-      ctx.lineTo(e.offsetX, e.offsetY);
-      ctx.strokeStyle = color;
-      ctx.lineWidth = width;
-      ctx.lineCap = 'round';
-      ctx.stroke();
-
-      socket.emit('draw', { x: e.offsetX, y: e.offsetY, color, width, start: false });
+    socket.on('newRound', (data) => {
+      gameStatus.textContent = '🎮 Partie en cours';
+      currentDrawer.textContent = `🎨 ${data.drawerName} dessine`;
+      wordToGuess.textContent = '';
+      
+      enableDrawingTools(data.drawerId === socket.id);
+      enableChat(data.drawerId !== socket.id);
+      
+      startTimer(60000); // 60 secondes
+      
+      addChatMessage('🎮 Système', `${data.drawerName} commence à dessiner !`);
     });
-    
-    canvas.addEventListener('mouseup', (e) => {
-      if (currentTool === 'line') {
-        const color = colorPicker.value;
-        const width = lineWidth.value;
 
-        ctx.strokeStyle = color;
-        ctx.lineWidth = width;
-        ctx.lineCap = 'round';
-
-        ctx.beginPath();
-        ctx.moveTo(startX, startY);
-        ctx.lineTo(e.offsetX, e.offsetY);
-        ctx.stroke();
-
-        socket.emit('draw_line', {
-          startX,
-          startY,
-          endX: e.offsetX,
-          endY: e.offsetY,
-          color,
-          width
-        });
+    socket.on('wordToDrawr', (data) => {
+      if (data.isDrawer) {
+        wordToGuess.textContent = `🎯 Mot à dessiner: ${data.word}`;
+        addChatMessage('🎮 Système', `Votre mot à dessiner: ${data.word}`);
       }
-      drawing = false;
+    });
+
+    socket.on('gameStatus', (data) => {
+      gameStatus.textContent = data.message;
+      if (!data.active) {
+        enableDrawingTools(false);
+        enableChat(false);
+        timer.textContent = '';
+        if (gameTimer) clearInterval(gameTimer);
+      }
+    });
+
+    socket.on('chatMessage', (data) => {
+      addChatMessage(data.playerName, data.message, data.isCorrect);
+    });
+
+    socket.on('correctGuess', (data) => {
+      addChatMessage('🎮 Système', `🎉 ${data.playerName} a trouvé le mot "${data.word}" ! (+10 points)`);
+    });
+
+    socket.on('roundEnd', (data) => {
+      if (gameTimer) clearInterval(gameTimer);
+      
+      let message = '';
+      if (data.reason === 'guessed') {
+        message = `🎉 Mot trouvé ! Le mot était: ${data.word}`;
+      } else if (data.reason === 'timeout') {
+        message = `⏰ Temps écoulé ! Le mot était: ${data.word}`;
+      } else if (data.reason === 'disconnected') {
+        message = `👤 Le dessinateur s'est déconnecté. Le mot était: ${data.word}`;
+      }
+      
+      addChatMessage('🎮 Système', message);
+      addChatMessage('🎮 Système', '⏳ Nouvelle manche dans 3 secondes...');
+      
+      enableDrawingTools(false);
+      enableChat(false);
+      timer.textContent = '';
     });
 
     socket.on('draw', (data) => {
@@ -157,7 +415,6 @@
     });
 
     socket.on('draw_line', (data) => {
-      console.log('Nouvelle ligne:', data);
       ctx.strokeStyle = data.color;
       ctx.lineWidth = data.width;
       ctx.lineCap = 'round';
@@ -168,14 +425,14 @@
       ctx.stroke();
     });
 
-    clearBtn.addEventListener('click', () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      socket.emit('clear');
-    });
-
     socket.on('clear', () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
     });
+
+    // Initialisation
+    enableDrawingTools(false);
+    enableChat(false);
+    updateToolButtons();
   </script>
 
 </body>
