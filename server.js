@@ -1,3 +1,20 @@
+const express = require('express');
+const http = require('http');
+const socketIo = require('socket.io');
+const path = require('path');
+
+const app = express();
+const server = http.createServer(app);
+const io = socketIo(server);
+
+// Servir les fichiers statiques depuis le dossier public
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Route principale
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 const drawingHistory = [];
 
 io.on('connection', (socket) => {
@@ -23,4 +40,9 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     console.log('🔴 Un utilisateur est déconnecté');
   });
+});
+
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+  console.log(`🚀 Serveur en cours d'exécution sur le port ${PORT}`);
 });
