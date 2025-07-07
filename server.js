@@ -200,7 +200,6 @@ const wordsList = [
   "Disque",
   "Radio",
 ];
-  
 
 // État du jeu
 let gameState = {
@@ -211,6 +210,7 @@ let gameState = {
   roundTimer: null,
   roundDuration: 60000, // 60 secondes par tour
   scores: new Map(),
+  waitingForNextRound: false, // Nouveau: indique si on attend qu'un joueur lance la prochaine manche
 };
 
 // Fonction pour démarrer une nouvelle manche
@@ -237,6 +237,7 @@ function startNewRound() {
   gameState.currentWord =
     wordsList[Math.floor(Math.random() * wordsList.length)];
   gameState.gameActive = true;
+  gameState.waitingForNextRound = false; // Reset du flag d'attente
 
   // Effacer le canvas pour la nouvelle manche
   drawingHistory.length = 0;
@@ -276,6 +277,9 @@ function endRound(reason) {
     gameState.roundTimer = null;
   }
 
+  gameState.gameActive = false;
+  gameState.waitingForNextRound = true;
+
   io.emit("roundEnd", {
     reason: reason,
     word: gameState.currentWord,
@@ -283,12 +287,13 @@ function endRound(reason) {
       name: player.name,
       score: player.score,
     })),
+    waitingForNext: true, // Indique qu'on attend l'action d'un joueur
   });
 
-  // Attendre 3 secondes avant la prochaine manche
-  setTimeout(() => {
-    startNewRound();
-  }, 3000);
+  // Ne plus démarrer automatiquement la prochaine manche
+  // setTimeout(() => {
+  //   startNewRound();
+  // }, 3000);
 }
 
 io.on("connection", (socket) => {
@@ -360,6 +365,27 @@ io.on("connection", (socket) => {
         message: message,
         isCorrect: false,
       });
+    }
+  });
+
+  // Gestion du bouton "Prochaine manche"
+  socket.on("startNextRound", () => {
+    const player = gameState.players.get(socket.id);
+    if (!player) return;
+
+    // Vérifier si on est bien en attente d'une nouvelle manche
+    if (gameState.waitingForNextRound && gameState.players.size >= 2) {
+      console.log(`🎮 ${player.name} a lancé la prochaine manche`);
+
+      // Informer tous les joueurs qui a lancé la manche
+      io.emit("nextRoundStarted", {
+        playerName: player.name,
+      });
+
+      // Démarrer la nouvelle manche après un petit délai
+      setTimeout(() => {
+        startNewRound();
+      }, 1000);
     }
   });
 
