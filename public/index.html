@@ -13,6 +13,11 @@
 
   <div class="mb-2">
     <input type="color" id="colorPicker" class="w-12 h-12 p-0 border-none cursor-pointer">
+    <div class="mb-2 flex gap-2">
+      <button id="pencilBtn" class="bg-blue-500 text-white p-2 rounded">✏️ Crayon</button>
+      <button id="eraserBtn" class="bg-gray-500 text-white p-2 rounded">🧽 Gomme</button>
+      <button id="lineBtn" class="bg-green-500 text-white p-2 rounded">📏 Ligne</button>
+    </div>
     <select id="lineWidth" class="ml-2 p-1 border rounded">
       <option value="2">Fin</option>
       <option value="5" selected>Moyen</option>
@@ -30,23 +35,77 @@
 
     let drawing = false;
 
-    // Paramètres du pinceau
+    socket.on('initCanvas', (history) => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      history.forEach(item => {
+        if (item.type === 'draw') {
+          const data = item.data;
+          ctx.strokeStyle = data.color;
+          ctx.lineWidth = data.width;
+          ctx.lineCap = 'round';
+
+          if (data.start) {
+            ctx.beginPath();
+            ctx.moveTo(data.x, data.y);
+          } else {
+            ctx.lineTo(data.x, data.y);
+            ctx.stroke();
+          }
+        } else if (item.type === 'draw_line') {
+          const d = item.data;
+          ctx.strokeStyle = d.color;
+          ctx.lineWidth = d.width;
+          ctx.lineCap = 'round';
+
+          ctx.beginPath();
+          ctx.moveTo(d.startX, d.startY);
+          ctx.lineTo(d.endX, d.endY);
+          ctx.stroke();
+        }
+      });
+    });
+
     const colorPicker = document.getElementById('colorPicker');
     const lineWidth = document.getElementById('lineWidth');
     const clearBtn = document.getElementById('clearBtn');
 
-    // Démarrer le dessin
+    let currentTool = 'pencil';
+    let startX, startY;
+    
+    const pencilBtn = document.getElementById('pencilBtn');
+    const eraserBtn = document.getElementById('eraserBtn');
+    const lineBtn = document.getElementById('lineBtn');
+    
+    pencilBtn.addEventListener('click', () => currentTool = 'pencil');
+    eraserBtn.addEventListener('click', () => currentTool = 'eraser');
+    lineBtn.addEventListener('click', () => currentTool = 'line');
+    
     canvas.addEventListener('mousedown', (e) => {
       drawing = true;
       ctx.beginPath();
+      startX = e.offsetX;
+      startY = e.offsetY;
+
+      if (currentTool === 'line') return;
+
       ctx.moveTo(e.offsetX, e.offsetY);
+      socket.emit('draw', {
+        x: e.offsetX,
+        y: e.offsetY,
+        color: currentTool === 'eraser' ? '#FFFFFF' : colorPicker.value,
+        width: currentTool === 'eraser' ? 20 : lineWidth.value,
+        start: true
+      });
     });
 
-    // Dessiner
     canvas.addEventListener('mousemove', (e) => {
       if (!drawing) return;
-      const color = colorPicker.value;
-      const width = lineWidth.value;
+
+      if (currentTool === 'line') return;
+
+      const color = currentTool === 'eraser' ? '#FFFFFF' : colorPicker.value;
+      const width = currentTool === 'eraser' ? 20 : lineWidth.value;
 
       ctx.lineTo(e.offsetX, e.offsetY);
       ctx.strokeStyle = color;
@@ -54,25 +113,61 @@
       ctx.lineCap = 'round';
       ctx.stroke();
 
-      socket.emit('draw', { x: e.offsetX, y: e.offsetY, color, width });
+      socket.emit('draw', { x: e.offsetX, y: e.offsetY, color, width, start: false });
+    });
+    
+    canvas.addEventListener('mouseup', (e) => {
+      if (currentTool === 'line') {
+        const color = colorPicker.value;
+        const width = lineWidth.value;
+
+        ctx.strokeStyle = color;
+        ctx.lineWidth = width;
+        ctx.lineCap = 'round';
+
+        ctx.beginPath();
+        ctx.moveTo(startX, startY);
+        ctx.lineTo(e.offsetX, e.offsetY);
+        ctx.stroke();
+
+        socket.emit('draw_line', {
+          startX,
+          startY,
+          endX: e.offsetX,
+          endY: e.offsetY,
+          color,
+          width
+        });
+      }
+      drawing = false;
     });
 
-    // Arrêter le dessin
-    canvas.addEventListener('mouseup', () => drawing = false);
-    canvas.addEventListener('mouseleave', () => drawing = false);
-
-    // Écouter les dessins des autres utilisateurs
     socket.on('draw', (data) => {
       ctx.strokeStyle = data.color;
       ctx.lineWidth = data.width;
       ctx.lineCap = 'round';
-      ctx.lineTo(data.x, data.y);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(data.x, data.y);
+
+      if (data.start) {
+        ctx.beginPath();
+        ctx.moveTo(data.x, data.y);
+      } else {
+        ctx.lineTo(data.x, data.y);
+        ctx.stroke();
+      }
     });
 
-    // Nettoyer le tableau
+    socket.on('draw_line', (data) => {
+      console.log('Nouvelle ligne:', data);
+      ctx.strokeStyle = data.color;
+      ctx.lineWidth = data.width;
+      ctx.lineCap = 'round';
+
+      ctx.beginPath();
+      ctx.moveTo(data.startX, data.startY);
+      ctx.lineTo(data.endX, data.endY);
+      ctx.stroke();
+    });
+
     clearBtn.addEventListener('click', () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       socket.emit('clear');
