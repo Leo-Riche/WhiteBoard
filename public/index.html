@@ -113,6 +113,13 @@
             <!-- Chat pour deviner -->
             <div class="bg-white p-3 md:p-4 rounded-lg shadow">
               <h3 class="font-bold text-base md:text-lg mb-2">💬 Chat</h3>
+
+              <!-- Message "presque" -->
+              <div
+                id="almostMessage"
+                class="hidden mb-2 p-2 bg-orange-100 border-l-4 border-orange-500 rounded text-sm font-medium text-orange-700"
+              ></div>
+
               <div
                 id="chatMessages"
                 class="h-32 md:h-40 overflow-y-auto border p-2 mb-2 bg-gray-50 rounded text-sm"
@@ -275,6 +282,7 @@
       const timer = document.getElementById("timer");
       const playersList = document.getElementById("playersList");
       const chatMessages = document.getElementById("chatMessages");
+      const almostMessage = document.getElementById("almostMessage");
       const chatInput = document.getElementById("chatInput");
       const sendChatBtn = document.getElementById("sendChatBtn");
       const startGameBtn = document.getElementById("startGameBtn");
@@ -503,6 +511,16 @@
         chatMessages.scrollTop = chatMessages.scrollHeight;
       }
 
+      function showAlmostMessage(message) {
+        almostMessage.textContent = message;
+        almostMessage.classList.remove("hidden");
+
+        // Masquer le message après 3 secondes
+        setTimeout(() => {
+          almostMessage.classList.add("hidden");
+        }, 3000);
+      }
+
       function updatePlayersList(players, currentDrawerId) {
         playersList.innerHTML = "";
         players.forEach((player) => {
@@ -604,10 +622,11 @@
         currentDrawer.textContent = `🎨 ${data.drawerName} dessine`;
         wordToGuess.textContent = "";
 
-        // Cacher le bouton de prochaine manche
+        // Cacher le bouton de prochaine manche et le message "presque"
         nextRoundBtn.classList.add("hidden");
         nextRoundBtn.disabled = false;
         nextRoundBtn.textContent = "🚀 Lancer la prochaine manche";
+        almostMessage.classList.add("hidden");
 
         enableDrawingTools(data.drawerId === socket.id);
         enableChat(data.drawerId !== socket.id);
@@ -646,6 +665,10 @@
           "🎮 Système",
           `🎉 ${data.playerName} a trouvé le mot "${data.word}" ! (+10 points)`
         );
+      });
+
+      socket.on("almostCorrect", (data) => {
+        showAlmostMessage(data.message);
       });
 
       socket.on("roundEnd", (data) => {

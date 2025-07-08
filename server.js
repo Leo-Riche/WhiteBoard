@@ -346,6 +346,38 @@ io.on("connection", (socket) => {
     }
   });
 
+  // Fonction pour calculer la distance de Levenshtein
+  function levenshteinDistance(str1, str2) {
+    const matrix = [];
+    const len1 = str1.length;
+    const len2 = str2.length;
+
+    // Initialiser la matrice
+    for (let i = 0; i <= len2; i++) {
+      matrix[i] = [i];
+    }
+    for (let j = 0; j <= len1; j++) {
+      matrix[0][j] = j;
+    }
+
+    // Remplir la matrice
+    for (let i = 1; i <= len2; i++) {
+      for (let j = 1; j <= len1; j++) {
+        if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
+          matrix[i][j] = matrix[i - 1][j - 1];
+        } else {
+          matrix[i][j] = Math.min(
+            matrix[i - 1][j - 1] + 1, // substitution
+            matrix[i][j - 1] + 1, // insertion
+            matrix[i - 1][j] + 1 // deletion
+          );
+        }
+      }
+    }
+
+    return matrix[len2][len1];
+  }
+
   // Gestion des messages de chat (pour deviner)
   socket.on("chatMessage", (message) => {
     const player = gameState.players.get(socket.id);
@@ -360,8 +392,11 @@ io.on("connection", (socket) => {
       return;
     }
 
-    // Vérifier si le message correspond au mot à deviner
-    if (message.toLowerCase().trim() === gameState.currentWord.toLowerCase()) {
+    const userMessage = message.toLowerCase().trim();
+    const targetWord = gameState.currentWord.toLowerCase();
+
+    // Vérifier si le message correspond exactement au mot à deviner
+    if (userMessage === targetWord) {
       // Bonne réponse !
       player.score += 10;
 
@@ -380,7 +415,25 @@ io.on("connection", (socket) => {
       // Terminer la manche
       endRound("guessed");
     } else {
-      // Mauvaise réponse, diffuser le message
+      // Vérifier si le mot est proche (1-2 lettres de différence)
+      const distance = levenshteinDistance(userMessage, targetWord);
+      const wordLength = Math.max(userMessage.length, targetWord.length);
+
+      // Considérer comme "proche" si :
+      // - 1-2 lettres de différence pour les mots de 4+ lettres
+      // - 1 lettre de différence pour les mots de 3 lettres ou moins
+      const isClose =
+        (wordLength >= 4 && distance <= 2) ||
+        (wordLength < 4 && distance === 1);
+
+      if (isClose) {
+        // Envoyer un message "presque" seulement au joueur qui a écrit
+        socket.emit("almostCorrect", {
+          message: "🔥 Presque ! Tu y es presque !",
+        });
+      }
+
+      // Diffuser le message à tous (même si c'est proche)
       io.emit("chatMessage", {
         playerName: player.name,
         message: message,
