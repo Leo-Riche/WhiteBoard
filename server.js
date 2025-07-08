@@ -199,14 +199,14 @@ const wordsList = [
 ];
 
 let gameState = {
-  players: new Map(), 
+  players: new Map(),
   currentDrawer: null,
   currentWord: null,
   gameActive: false,
   roundTimer: null,
-  roundDuration: 60000, 
+  roundDuration: 60000,
   scores: new Map(),
-  waitingForNextRound: false, 
+  waitingForNextRound: false,
 };
 
 function startNewRound() {
@@ -231,7 +231,7 @@ function startNewRound() {
   gameState.currentWord =
     wordsList[Math.floor(Math.random() * wordsList.length)];
   gameState.gameActive = true;
-  gameState.waitingForNextRound = false; 
+  gameState.waitingForNextRound = false;
 
   drawingHistory.length = 0;
   io.emit("clear");
@@ -240,7 +240,7 @@ function startNewRound() {
     drawerId: gameState.currentDrawer,
     drawerName:
       gameState.players.get(gameState.currentDrawer)?.name || "Joueur",
-    isDrawing: false, 
+    isDrawing: false,
   });
 
   io.to(gameState.currentDrawer).emit("wordToDrawr", {
@@ -252,7 +252,6 @@ function startNewRound() {
   gameState.roundTimer = setTimeout(() => {
     endRound("timeout");
   }, gameState.roundDuration);
-
 }
 
 function endRound(reason) {
@@ -264,6 +263,17 @@ function endRound(reason) {
   gameState.gameActive = false;
   gameState.waitingForNextRound = true;
 
+  // Si quelqu'un a trouvé, donner des points au dessinateur aussi
+  if (reason === "guessed" && gameState.currentDrawer) {
+    const drawer = gameState.players.get(gameState.currentDrawer);
+    if (drawer) {
+      drawer.score += 5;
+      console.log(
+        `🎨 ${drawer.name} (dessinateur) gagne 5 points ! Score: ${drawer.score}`
+      );
+    }
+  }
+
   io.emit("roundEnd", {
     reason: reason,
     word: gameState.currentWord,
@@ -271,13 +281,11 @@ function endRound(reason) {
       name: player.name,
       score: player.score,
     })),
-    waitingForNext: true, 
+    waitingForNext: true,
   });
-
 }
 
 io.on("connection", (socket) => {
-
   socket.emit("initCanvas", drawingHistory);
 
   socket.on("joinGame", (playerName) => {
@@ -288,7 +296,6 @@ io.on("connection", (socket) => {
     };
 
     gameState.players.set(socket.id, player);
-
 
     io.emit("playersUpdate", {
       players: Array.from(gameState.players.values()),
@@ -305,7 +312,6 @@ io.on("connection", (socket) => {
     if (!player) return;
 
     if (gameState.players.size >= 2 && !gameState.gameActive) {
-
       io.emit("gameStarted", {
         playerName: player.name,
       });
@@ -316,6 +322,7 @@ io.on("connection", (socket) => {
     }
   });
 
+  // Fonction pour calculer la distance de Levenshtein
   function levenshteinDistance(str1, str2) {
     const matrix = [];
     const len1 = str1.length;
@@ -334,9 +341,9 @@ io.on("connection", (socket) => {
           matrix[i][j] = matrix[i - 1][j - 1];
         } else {
           matrix[i][j] = Math.min(
-            matrix[i - 1][j - 1] + 1, 
-            matrix[i][j - 1] + 1, 
-            matrix[i - 1][j] + 1 
+            matrix[i - 1][j - 1] + 1,
+            matrix[i][j - 1] + 1,
+            matrix[i - 1][j] + 1
           );
         }
       }
@@ -361,22 +368,32 @@ io.on("connection", (socket) => {
     const targetWord = gameState.currentWord.toLowerCase();
 
     if (userMessage === targetWord) {
+      // Bonne réponse !
       player.score += 10;
 
+      // Émettre le message de chat avec la bonne réponse
       io.emit("chatMessage", {
         playerName: player.name,
         message: message,
         isCorrect: true,
       });
 
+      // Émettre un événement spécial pour la victoire avec tous les détails
       io.emit("correctGuess", {
         playerName: player.name,
         word: gameState.currentWord,
         score: player.score,
+        winnerId: socket.id,
       });
 
+      console.log(
+        `🎉 ${player.name} a trouvé "${gameState.currentWord}" ! Score: ${player.score}`
+      );
+
+      // Terminer la manche
       endRound("guessed");
     } else {
+      // Vérifier si le mot est proche (1-2 lettres de différence)
       const distance = levenshteinDistance(userMessage, targetWord);
       const wordLength = Math.max(userMessage.length, targetWord.length);
 
@@ -385,11 +402,13 @@ io.on("connection", (socket) => {
         (wordLength < 4 && distance === 1);
 
       if (isClose) {
+        // Envoyer un message "presque" seulement au joueur qui a écrit
         socket.emit("almostCorrect", {
           message: "🔥 Presque ! Tu y es presque !",
         });
       }
 
+      // Diffuser le message à tous (même si c'est proche)
       io.emit("chatMessage", {
         playerName: player.name,
         message: message,
@@ -403,7 +422,6 @@ io.on("connection", (socket) => {
     if (!player) return;
 
     if (gameState.waitingForNextRound && gameState.players.size >= 2) {
-
       io.emit("nextRoundStarted", {
         playerName: player.name,
       });
@@ -436,7 +454,6 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", () => {
-
     const player = gameState.players.get(socket.id);
     if (player) {
       gameState.players.delete(socket.id);

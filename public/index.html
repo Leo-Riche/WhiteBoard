@@ -59,6 +59,36 @@
       </div>
     </div>
 
+    <!-- Victory Modal -->
+    <div
+      id="victoryModal"
+      class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 hidden"
+    >
+      <div
+        class="bg-white p-6 md:p-8 rounded-lg shadow-lg max-w-md w-full text-center"
+      >
+        <div id="victoryIcon" class="text-6xl mb-4">🎉</div>
+        <h2
+          id="victoryTitle"
+          class="text-xl md:text-2xl font-bold mb-4 text-green-600"
+        >
+          Félicitations !
+        </h2>
+        <p id="victoryMessage" class="text-gray-700 mb-6 text-base md:text-lg">
+          Vous avez trouvé le mot !
+        </p>
+        <div id="victoryScore" class="text-lg font-bold mb-4 text-blue-600">
+          +10 points !
+        </div>
+        <button
+          id="closeVictoryBtn"
+          class="bg-blue-500 text-white px-6 py-2 rounded text-base md:text-lg hover:bg-blue-600"
+        >
+          Continuer
+        </button>
+      </div>
+    </div>
+
     <div id="gameInterface" class="hidden">
       <div class="flex flex-col lg:flex-row gap-4 lg:gap-6 max-w-7xl mx-auto">
         <div class="w-full lg:w-80 space-y-4 order-2 lg:order-1">
@@ -203,6 +233,28 @@
       </div>
     </div>
 
+    <!-- Notification de victoire -->
+    <div
+      id="victoryNotification"
+      class="hidden fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 bg-gradient-to-r from-green-400 to-blue-500 text-white p-6 md:p-8 rounded-2xl shadow-2xl border-4 border-yellow-400 max-w-md w-full mx-4"
+    >
+      <div class="text-center">
+        <div class="text-4xl md:text-6xl mb-4">🎉</div>
+        <h2 id="victoryTitle" class="text-xl md:text-2xl font-bold mb-2"></h2>
+        <p id="victoryMessage" class="text-base md:text-lg mb-4"></p>
+        <div
+          id="victoryScore"
+          class="text-2xl md:text-3xl font-bold mb-4 text-yellow-300"
+        ></div>
+        <button
+          id="victoryCloseBtn"
+          class="bg-white text-blue-600 font-bold py-2 px-6 rounded-full hover:bg-gray-100 transition-colors"
+        >
+          Continuer
+        </button>
+      </div>
+    </div>
+
     <script>
       const socket = io();
       const canvas = document.getElementById("canvas");
@@ -224,7 +276,7 @@
             containerWidth - 16,
             window.innerWidth - 32
           );
-          const newHeight = (maxWidth * 5) / 8; 
+          const newHeight = (maxWidth * 5) / 8;
 
           canvas.style.width = maxWidth + "px";
           canvas.style.height = newHeight + "px";
@@ -271,12 +323,21 @@
       const sendChatBtn = document.getElementById("sendChatBtn");
       const startGameBtn = document.getElementById("startGameBtn");
       const nextRoundBtn = document.getElementById("nextRoundBtn");
+      const victoryNotification = document.getElementById(
+        "victoryNotification"
+      );
+      const victoryTitle = document.getElementById("victoryTitle");
+      const victoryMessage = document.getElementById("victoryMessage");
+      const victoryScore = document.getElementById("victoryScore");
+      const victoryCloseBtn = document.getElementById("victoryCloseBtn");
       const colorPicker = document.getElementById("colorPicker");
       const lineWidth = document.getElementById("lineWidth");
       const clearBtn = document.getElementById("clearBtn");
       const pencilBtn = document.getElementById("pencilBtn");
       const eraserBtn = document.getElementById("eraserBtn");
       const lineBtn = document.getElementById("lineBtn");
+      const closeVictoryBtn = document.getElementById("closeVictoryBtn");
+      const victoryModal = document.getElementById("victoryModal");
 
       joinGameBtn.addEventListener("click", () => {
         const name = playerNameInput.value.trim();
@@ -310,6 +371,16 @@
         socket.emit("startNextRound");
         nextRoundBtn.disabled = true;
         nextRoundBtn.textContent = "⏳ Lancement en cours...";
+      });
+
+      // Bouton fermer notification de victoire
+      victoryCloseBtn.addEventListener("click", () => {
+        victoryNotification.classList.add("hidden");
+      });
+
+      // Bouton fermer modal de victoire
+      closeVictoryBtn.addEventListener("click", () => {
+        victoryModal.classList.add("hidden");
       });
 
       function sendMessage() {
@@ -603,7 +674,7 @@
         enableDrawingTools(data.drawerId === socket.id);
         enableChat(data.drawerId !== socket.id);
 
-        startTimer(60000); 
+        startTimer(60000);
 
         addChatMessage(
           "🎮 Système",
@@ -637,6 +708,10 @@
           "🎮 Système",
           `🎉 ${data.playerName} a trouvé le mot "${data.word}" ! (+10 points)`
         );
+
+        // Show victory notification
+        const isWinner = data.winnerId === socket.id;
+        showVictoryNotification(isWinner, data.playerName, 10);
       });
 
       socket.on("almostCorrect", (data) => {
@@ -709,6 +784,34 @@
       socket.on("clear", () => {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
       });
+
+      function showVictoryNotification(isWinner, winnerName, points) {
+        const victoryIcon = document.getElementById("victoryIcon");
+        const victoryTitle = document.getElementById("victoryTitle");
+        const victoryMessage = document.getElementById("victoryMessage");
+        const victoryScore = document.getElementById("victoryScore");
+        const victoryModal = document.getElementById("victoryModal");
+
+        if (isWinner) {
+          victoryIcon.textContent = "🎉";
+          victoryTitle.textContent = "Félicitations !";
+          victoryTitle.className =
+            "text-xl md:text-2xl font-bold mb-4 text-green-600";
+          victoryMessage.textContent = "Vous avez trouvé le mot !";
+          victoryScore.textContent = `+${points} points !`;
+          victoryScore.className = "text-lg font-bold mb-4 text-green-600";
+        } else {
+          victoryIcon.textContent = "👏";
+          victoryTitle.textContent = "Bravo !";
+          victoryTitle.className =
+            "text-xl md:text-2xl font-bold mb-4 text-blue-600";
+          victoryMessage.textContent = `${winnerName} a trouvé le mot !`;
+          victoryScore.textContent = "";
+          victoryScore.className = "hidden";
+        }
+
+        victoryModal.classList.remove("hidden");
+      }
 
       enableDrawingTools(false);
       enableChat(false);
