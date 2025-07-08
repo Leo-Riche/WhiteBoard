@@ -70,7 +70,7 @@
           <div class="bg-white p-3 md:p-4 rounded-lg shadow">
             <h3 class="font-bold text-base md:text-lg mb-2">📊 État du jeu</h3>
             <div id="gameStatus" class="text-gray-600 text-sm md:text-base">
-              En attente de joueurs...
+              En attente de joueurs... (Il faut au moins 2 joueurs)
             </div>
             <div
               id="currentDrawer"
@@ -84,6 +84,14 @@
               id="timer"
               class="text-red-500 font-mono text-base md:text-lg mt-2"
             ></div>
+
+            <!-- Bouton pour démarrer le jeu -->
+            <button
+              id="startGameBtn"
+              class="hidden w-full mt-3 bg-blue-500 text-white p-2 md:p-3 rounded text-sm md:text-lg hover:bg-blue-600 font-bold"
+            >
+              🎮 Démarrer le jeu
+            </button>
 
             <!-- Bouton pour prochaine manche -->
             <button
@@ -269,6 +277,7 @@
       const chatMessages = document.getElementById("chatMessages");
       const chatInput = document.getElementById("chatInput");
       const sendChatBtn = document.getElementById("sendChatBtn");
+      const startGameBtn = document.getElementById("startGameBtn");
       const nextRoundBtn = document.getElementById("nextRoundBtn");
       const colorPicker = document.getElementById("colorPicker");
       const lineWidth = document.getElementById("lineWidth");
@@ -299,6 +308,13 @@
         if (e.key === "Enter") {
           sendMessage();
         }
+      });
+
+      // Bouton démarrer le jeu
+      startGameBtn.addEventListener("click", () => {
+        socket.emit("startGame");
+        startGameBtn.disabled = true;
+        startGameBtn.textContent = "⏳ Démarrage en cours...";
       });
 
       // Bouton prochaine manche
@@ -559,6 +575,28 @@
 
       socket.on("playersUpdate", (data) => {
         updatePlayersList(data.players, data.currentDrawer);
+      });
+
+      socket.on("canStartGame", (data) => {
+        if (data.canStart) {
+          startGameBtn.classList.remove("hidden");
+          gameStatus.textContent =
+            "✅ Prêt à démarrer ! Cliquez sur le bouton pour commencer.";
+        } else {
+          startGameBtn.classList.add("hidden");
+          gameStatus.textContent =
+            "En attente de joueurs... (Il faut au moins 2 joueurs)";
+        }
+      });
+
+      socket.on("gameStarted", (data) => {
+        addChatMessage(
+          "🎮 Système",
+          `🎉 ${data.playerName} a démarré le jeu !`
+        );
+        startGameBtn.classList.add("hidden");
+        startGameBtn.disabled = false;
+        startGameBtn.textContent = "🎮 Démarrer le jeu";
       });
 
       socket.on("newRound", (data) => {

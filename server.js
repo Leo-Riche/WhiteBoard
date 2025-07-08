@@ -319,9 +319,30 @@ io.on("connection", (socket) => {
       currentDrawer: gameState.currentDrawer,
     });
 
-    // Démarrer le jeu si on a au moins 2 joueurs et que le jeu n'est pas actif
+    // Informer qu'on peut démarrer le jeu si on a au moins 2 joueurs
     if (gameState.players.size >= 2 && !gameState.gameActive) {
-      setTimeout(() => startNewRound(), 1000);
+      io.emit("canStartGame", { canStart: true });
+    }
+  });
+
+  // Gestion du démarrage manuel du jeu
+  socket.on("startGame", () => {
+    const player = gameState.players.get(socket.id);
+    if (!player) return;
+
+    // Vérifier si on peut démarrer le jeu
+    if (gameState.players.size >= 2 && !gameState.gameActive) {
+      console.log(`🎮 ${player.name} a démarré le jeu`);
+
+      // Informer tous les joueurs qui a démarré le jeu
+      io.emit("gameStarted", {
+        playerName: player.name,
+      });
+
+      // Démarrer la première manche après un petit délai
+      setTimeout(() => {
+        startNewRound();
+      }, 1000);
     }
   });
 
@@ -443,6 +464,11 @@ io.on("connection", (socket) => {
           active: false,
           message: "Il faut au moins 2 joueurs pour continuer le jeu",
         });
+      }
+
+      // Informer qu'on ne peut plus démarrer le jeu s'il n'y a pas assez de joueurs
+      if (gameState.players.size < 2 && !gameState.gameActive) {
+        io.emit("canStartGame", { canStart: false });
       }
     }
   });
