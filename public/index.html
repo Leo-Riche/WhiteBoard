@@ -6,26 +6,55 @@
     <title>Dessiner & Deviner</title>
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      .canvas-container {
+        max-width: 100%;
+        overflow-x: auto;
+      }
+
+      #canvas {
+        min-width: 320px;
+        max-width: 100%;
+      }
+
+      @media (max-width: 768px) {
+        #canvas {
+          width: 100% !important;
+          height: auto !important;
+          max-width: calc(100vw - 2rem);
+          aspect-ratio: 8/5;
+        }
+      }
+
+      /* Améliorer l'expérience tactile */
+      .touch-none {
+        touch-action: none;
+      }
+    </style>
   </head>
-  <body class="bg-gray-100 min-h-screen p-4">
-    <h1 class="text-3xl font-bold text-center mb-6">🎨 Dessiner & Deviner</h1>
+  <body class="bg-gray-100 min-h-screen p-2 md:p-4">
+    <h1 class="text-2xl md:text-3xl font-bold text-center mb-4 md:mb-6">
+      🎨 Dessiner & Deviner
+    </h1>
 
     <!-- Modal de connexion -->
     <div
       id="joinModal"
-      class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+      class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
     >
-      <div class="bg-white p-8 rounded-lg shadow-lg max-w-md w-full mx-4">
-        <h2 class="text-2xl font-bold mb-4 text-center">Rejoindre le jeu</h2>
+      <div class="bg-white p-6 md:p-8 rounded-lg shadow-lg max-w-md w-full">
+        <h2 class="text-xl md:text-2xl font-bold mb-4 text-center">
+          Rejoindre le jeu
+        </h2>
         <input
           type="text"
           id="playerNameInput"
           placeholder="Votre nom"
-          class="w-full p-3 border rounded mb-4 text-lg"
+          class="w-full p-3 border rounded mb-4 text-base md:text-lg"
         />
         <button
           id="joinGameBtn"
-          class="w-full bg-blue-500 text-white p-3 rounded text-lg hover:bg-blue-600"
+          class="w-full bg-blue-500 text-white p-3 rounded text-base md:text-lg hover:bg-blue-600"
         >
           🎮 Rejoindre
         </button>
@@ -34,120 +63,140 @@
 
     <!-- Interface principale -->
     <div id="gameInterface" class="hidden">
-      <div class="flex gap-6 max-w-7xl mx-auto">
-        <!-- Panneau de gauche - Info du jeu -->
-        <div class="w-80 space-y-4">
+      <div class="flex flex-col lg:flex-row gap-4 lg:gap-6 max-w-7xl mx-auto">
+        <!-- Panneau d'information -->
+        <div class="w-full lg:w-80 space-y-4 order-2 lg:order-1">
           <!-- État du jeu -->
-          <div class="bg-white p-4 rounded-lg shadow">
-            <h3 class="font-bold text-lg mb-2">📊 État du jeu</h3>
-            <div id="gameStatus" class="text-gray-600">
+          <div class="bg-white p-3 md:p-4 rounded-lg shadow">
+            <h3 class="font-bold text-base md:text-lg mb-2">📊 État du jeu</h3>
+            <div id="gameStatus" class="text-gray-600 text-sm md:text-base">
               En attente de joueurs...
             </div>
             <div
               id="currentDrawer"
-              class="text-blue-600 font-medium mt-2"
+              class="text-blue-600 font-medium mt-2 text-sm md:text-base"
             ></div>
             <div
               id="wordToGuess"
-              class="text-green-600 font-bold text-xl mt-2"
+              class="text-green-600 font-bold text-lg md:text-xl mt-2"
             ></div>
-            <div id="timer" class="text-red-500 font-mono text-lg mt-2"></div>
+            <div
+              id="timer"
+              class="text-red-500 font-mono text-base md:text-lg mt-2"
+            ></div>
 
             <!-- Bouton pour prochaine manche -->
             <button
               id="nextRoundBtn"
-              class="hidden w-full mt-3 bg-green-500 text-white p-3 rounded text-lg hover:bg-green-600 font-bold"
+              class="hidden w-full mt-3 bg-green-500 text-white p-2 md:p-3 rounded text-sm md:text-lg hover:bg-green-600 font-bold"
             >
               🚀 Lancer la prochaine manche
             </button>
           </div>
 
-          <!-- Liste des joueurs -->
-          <div class="bg-white p-4 rounded-lg shadow">
-            <h3 class="font-bold text-lg mb-2">👨‍👨‍👧​ Joueurs</h3>
-            <div id="playersList" class="space-y-2"></div>
-          </div>
+          <!-- Liste des joueurs et Chat en grille sur mobile -->
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-4">
+            <!-- Liste des joueurs -->
+            <div class="bg-white p-3 md:p-4 rounded-lg shadow">
+              <h3 class="font-bold text-base md:text-lg mb-2">� Joueurs</h3>
+              <div id="playersList" class="space-y-2"></div>
+            </div>
 
-          <!-- Chat pour deviner -->
-          <div class="bg-white p-4 rounded-lg shadow">
-            <h3 class="font-bold text-lg mb-2">💬 Chat</h3>
-            <div
-              id="chatMessages"
-              class="h-40 overflow-y-auto border p-2 mb-2 bg-gray-50 rounded"
-            ></div>
-            <div class="flex gap-2">
-              <input
-                type="text"
-                id="chatInput"
-                placeholder="Devinez le mot..."
-                class="flex-1 p-2 border rounded"
-                disabled
-              />
-              <button
-                id="sendChatBtn"
-                class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
-                disabled
-              >
-                Envoyer
-              </button>
+            <!-- Chat pour deviner -->
+            <div class="bg-white p-3 md:p-4 rounded-lg shadow">
+              <h3 class="font-bold text-base md:text-lg mb-2">💬 Chat</h3>
+              <div
+                id="chatMessages"
+                class="h-32 md:h-40 overflow-y-auto border p-2 mb-2 bg-gray-50 rounded text-sm"
+              ></div>
+              <div class="flex gap-2">
+                <input
+                  type="text"
+                  id="chatInput"
+                  placeholder="Devinez le mot..."
+                  class="flex-1 p-2 border rounded text-sm md:text-base"
+                  disabled
+                />
+                <button
+                  id="sendChatBtn"
+                  class="bg-green-500 text-white px-3 md:px-4 py-2 rounded hover:bg-green-600 text-sm md:text-base"
+                  disabled
+                >
+                  Envoyer
+                </button>
+              </div>
             </div>
           </div>
         </div>
 
         <!-- Zone de dessin -->
-        <div class="flex-1">
+        <div class="flex-1 order-1 lg:order-2">
           <!-- Outils de dessin -->
-          <div class="bg-white p-4 rounded-lg shadow mb-4">
-            <div class="flex flex-wrap gap-2 items-center">
+          <div class="bg-white p-3 md:p-4 rounded-lg shadow mb-4">
+            <div
+              class="grid grid-cols-3 md:flex md:flex-wrap gap-2 items-center"
+            >
               <input
                 type="color"
                 id="colorPicker"
-                class="w-12 h-12 p-0 border-none cursor-pointer"
+                class="w-10 h-10 md:w-12 md:h-12 p-0 border-none cursor-pointer rounded"
                 disabled
               />
               <button
                 id="pencilBtn"
-                class="bg-blue-500 text-white p-2 rounded hover:bg-blue-600"
+                class="bg-blue-500 text-white p-2 rounded hover:bg-blue-600 text-xs md:text-sm flex items-center justify-center"
                 disabled
               >
-                ✏️ Crayon
+                <span class="md:hidden">✏️</span>
+                <span class="hidden md:inline">✏️ Crayon</span>
               </button>
               <button
                 id="eraserBtn"
-                class="bg-gray-500 text-white p-2 rounded hover:bg-gray-600"
+                class="bg-gray-500 text-white p-2 rounded hover:bg-gray-600 text-xs md:text-sm flex items-center justify-center"
                 disabled
               >
-                🧽 Gomme
+                <span class="md:hidden">🧽</span>
+                <span class="hidden md:inline">🧽 Gomme</span>
               </button>
               <button
                 id="lineBtn"
-                class="bg-green-500 text-white p-2 rounded hover:bg-green-600"
+                class="bg-green-500 text-white p-2 rounded hover:bg-green-600 text-xs md:text-sm flex items-center justify-center"
                 disabled
               >
-                📏 Ligne
+                <span class="md:hidden">📏</span>
+                <span class="hidden md:inline">📏 Ligne</span>
               </button>
-              <select id="lineWidth" class="p-2 border rounded" disabled>
+              <select
+                id="lineWidth"
+                class="p-2 border rounded text-xs md:text-sm"
+                disabled
+              >
                 <option value="2">Fin</option>
                 <option value="5" selected>Moyen</option>
                 <option value="10">Épais</option>
               </select>
               <button
                 id="clearBtn"
-                class="bg-red-500 text-white p-2 rounded hover:bg-red-600"
+                class="bg-red-500 text-white p-2 rounded hover:bg-red-600 text-xs md:text-sm flex items-center justify-center"
                 disabled
               >
-                🗑️ Nettoyer
+                <span class="md:hidden">🗑️</span>
+                <span class="hidden md:inline">🗑️ Nettoyer</span>
               </button>
             </div>
           </div>
 
-          <!-- Canvas -->
-          <canvas
-            id="canvas"
-            class="border rounded bg-white shadow-lg mx-auto block"
-            width="800"
-            height="500"
-          ></canvas>
+          <!-- Canvas Container -->
+          <div class="bg-white p-2 md:p-4 rounded-lg shadow">
+            <div class="canvas-container overflow-auto">
+              <canvas
+                id="canvas"
+                class="border rounded bg-white shadow-lg mx-auto block touch-none"
+                width="800"
+                height="500"
+              ></canvas>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -163,6 +212,49 @@
       let startX, startY;
       let isDrawer = false;
       let gameTimer = null;
+
+      // Fonction pour gérer le canvas responsive
+      function resizeCanvas() {
+        const container = document.querySelector(".canvas-container");
+        const containerWidth = container.clientWidth;
+        const isMobile = window.innerWidth < 768;
+
+        if (isMobile) {
+          const maxWidth = Math.min(
+            containerWidth - 16,
+            window.innerWidth - 32
+          );
+          const newHeight = (maxWidth * 5) / 8; // Ratio 8:5
+
+          canvas.style.width = maxWidth + "px";
+          canvas.style.height = newHeight + "px";
+        } else {
+          canvas.style.width = "800px";
+          canvas.style.height = "500px";
+        }
+      }
+
+      // Fonction pour obtenir les coordonnées (mouse/touch)
+      function getEventPos(e) {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+
+        let clientX, clientY;
+
+        if (e.touches && e.touches.length > 0) {
+          clientX = e.touches[0].clientX;
+          clientY = e.touches[0].clientY;
+        } else {
+          clientX = e.clientX;
+          clientY = e.clientY;
+        }
+
+        return {
+          x: (clientX - rect.left) * scaleX,
+          y: (clientY - rect.top) * scaleY,
+        };
+      }
 
       // Éléments DOM
       const joinModal = document.getElementById("joinModal");
@@ -250,56 +342,62 @@
           lineBtn.classList.add("ring-2", "ring-yellow-400");
       }
 
-      // Dessin sur canvas
-      canvas.addEventListener("mousedown", (e) => {
+      // Gestion des événements de dessin (souris et tactile)
+      function startDrawing(e) {
         if (!isDrawer) return;
+        e.preventDefault();
 
         drawing = true;
         ctx.beginPath();
-        startX = e.offsetX;
-        startY = e.offsetY;
+        const pos = getEventPos(e);
+        startX = pos.x;
+        startY = pos.y;
 
         if (currentTool === "line") return;
 
-        ctx.moveTo(e.offsetX, e.offsetY);
+        ctx.moveTo(pos.x, pos.y);
         socket.emit("draw", {
-          x: e.offsetX,
-          y: e.offsetY,
+          x: pos.x,
+          y: pos.y,
           color: currentTool === "eraser" ? "#FFFFFF" : colorPicker.value,
           width: currentTool === "eraser" ? 20 : lineWidth.value,
           start: true,
         });
-      });
+      }
 
-      canvas.addEventListener("mousemove", (e) => {
+      function continueDrawing(e) {
         if (!drawing || !isDrawer) return;
+        e.preventDefault();
 
         if (currentTool === "line") return;
 
         const color = currentTool === "eraser" ? "#FFFFFF" : colorPicker.value;
         const width = currentTool === "eraser" ? 20 : lineWidth.value;
+        const pos = getEventPos(e);
 
-        ctx.lineTo(e.offsetX, e.offsetY);
+        ctx.lineTo(pos.x, pos.y);
         ctx.strokeStyle = color;
         ctx.lineWidth = width;
         ctx.lineCap = "round";
         ctx.stroke();
 
         socket.emit("draw", {
-          x: e.offsetX,
-          y: e.offsetY,
+          x: pos.x,
+          y: pos.y,
           color,
           width,
           start: false,
         });
-      });
+      }
 
-      canvas.addEventListener("mouseup", (e) => {
+      function stopDrawing(e) {
         if (!isDrawer) return;
+        e.preventDefault();
 
-        if (currentTool === "line") {
+        if (currentTool === "line" && drawing) {
           const color = colorPicker.value;
           const width = lineWidth.value;
+          const pos = getEventPos(e);
 
           ctx.strokeStyle = color;
           ctx.lineWidth = width;
@@ -307,20 +405,32 @@
 
           ctx.beginPath();
           ctx.moveTo(startX, startY);
-          ctx.lineTo(e.offsetX, e.offsetY);
+          ctx.lineTo(pos.x, pos.y);
           ctx.stroke();
 
           socket.emit("draw_line", {
             startX,
             startY,
-            endX: e.offsetX,
-            endY: e.offsetY,
+            endX: pos.x,
+            endY: pos.y,
             color,
             width,
           });
         }
         drawing = false;
-      });
+      }
+
+      // Événements souris
+      canvas.addEventListener("mousedown", startDrawing);
+      canvas.addEventListener("mousemove", continueDrawing);
+      canvas.addEventListener("mouseup", stopDrawing);
+      canvas.addEventListener("mouseout", stopDrawing);
+
+      // Événements tactiles
+      canvas.addEventListener("touchstart", startDrawing);
+      canvas.addEventListener("touchmove", continueDrawing);
+      canvas.addEventListener("touchend", stopDrawing);
+      canvas.addEventListener("touchcancel", stopDrawing);
 
       clearBtn.addEventListener("click", () => {
         if (isDrawer) {
@@ -572,6 +682,13 @@
       enableDrawingTools(false);
       enableChat(false);
       updateToolButtons();
+
+      // Gérer le redimensionnement du canvas
+      resizeCanvas();
+      window.addEventListener("resize", resizeCanvas);
+      window.addEventListener("orientationchange", () => {
+        setTimeout(resizeCanvas, 100);
+      });
     </script>
   </body>
 </html>
