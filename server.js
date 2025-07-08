@@ -7,17 +7,14 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
 
-// Servir les fichiers statiques depuis le dossier public
 app.use(express.static(path.join(__dirname, "public")));
 
-// Route principale
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
 const drawingHistory = [];
 
-// Liste de mots à deviner
 const wordsList = [
   "Soleil",
   "Lune",
@@ -201,19 +198,17 @@ const wordsList = [
   "Radio",
 ];
 
-// État du jeu
 let gameState = {
-  players: new Map(), // socketId -> {id, name, score}
+  players: new Map(), 
   currentDrawer: null,
   currentWord: null,
   gameActive: false,
   roundTimer: null,
-  roundDuration: 60000, // 60 secondes par tour
+  roundDuration: 60000, 
   scores: new Map(),
-  waitingForNextRound: false, // Nouveau: indique si on attend qu'un joueur lance la prochaine manche
+  waitingForNextRound: false, 
 };
 
-// Fonction pour démarrer une nouvelle manche
 function startNewRound() {
   const playerIds = Array.from(gameState.players.keys());
 
@@ -226,7 +221,6 @@ function startNewRound() {
     return;
   }
 
-  // Sélectionner un nouveau dessinateur (différent du précédent si possible)
   let availableDrawers = playerIds.filter(
     (id) => id !== gameState.currentDrawer
   );
@@ -237,40 +231,30 @@ function startNewRound() {
   gameState.currentWord =
     wordsList[Math.floor(Math.random() * wordsList.length)];
   gameState.gameActive = true;
-  gameState.waitingForNextRound = false; // Reset du flag d'attente
+  gameState.waitingForNextRound = false; 
 
-  // Effacer le canvas pour la nouvelle manche
   drawingHistory.length = 0;
   io.emit("clear");
 
-  // Informer tous les joueurs du nouveau tour
   io.emit("newRound", {
     drawerId: gameState.currentDrawer,
     drawerName:
       gameState.players.get(gameState.currentDrawer)?.name || "Joueur",
-    isDrawing: false, // Par défaut, personne ne dessine
+    isDrawing: false, 
   });
 
-  // Envoyer le mot seulement au dessinateur
   io.to(gameState.currentDrawer).emit("wordToDrawr", {
     word: gameState.currentWord,
     isDrawer: true,
   });
 
-  // Démarrer le timer du tour
   if (gameState.roundTimer) clearTimeout(gameState.roundTimer);
   gameState.roundTimer = setTimeout(() => {
     endRound("timeout");
   }, gameState.roundDuration);
 
-  console.log(
-    `🎮 Nouvelle manche: ${
-      gameState.players.get(gameState.currentDrawer)?.name
-    } dessine "${gameState.currentWord}"`
-  );
 }
 
-// Fonction pour terminer une manche
 function endRound(reason) {
   if (gameState.roundTimer) {
     clearTimeout(gameState.roundTimer);
@@ -287,21 +271,15 @@ function endRound(reason) {
       name: player.name,
       score: player.score,
     })),
-    waitingForNext: true, // Indique qu'on attend l'action d'un joueur
+    waitingForNext: true, 
   });
 
-  // Ne plus démarrer automatiquement la prochaine manche
-  // setTimeout(() => {
-  //   startNewRound();
-  // }, 3000);
 }
 
 io.on("connection", (socket) => {
-  console.log("🟢 Un utilisateur est connecté");
 
   socket.emit("initCanvas", drawingHistory);
 
-  // Gestion de l'inscription d'un joueur
   socket.on("joinGame", (playerName) => {
     const player = {
       id: socket.id,
@@ -311,48 +289,38 @@ io.on("connection", (socket) => {
 
     gameState.players.set(socket.id, player);
 
-    console.log(`👤 ${player.name} a rejoint le jeu`);
 
-    // Informer tous les joueurs de la liste mise à jour
     io.emit("playersUpdate", {
       players: Array.from(gameState.players.values()),
       currentDrawer: gameState.currentDrawer,
     });
 
-    // Informer qu'on peut démarrer le jeu si on a au moins 2 joueurs
     if (gameState.players.size >= 2 && !gameState.gameActive) {
       io.emit("canStartGame", { canStart: true });
     }
   });
 
-  // Gestion du démarrage manuel du jeu
   socket.on("startGame", () => {
     const player = gameState.players.get(socket.id);
     if (!player) return;
 
-    // Vérifier si on peut démarrer le jeu
     if (gameState.players.size >= 2 && !gameState.gameActive) {
-      console.log(`🎮 ${player.name} a démarré le jeu`);
 
-      // Informer tous les joueurs qui a démarré le jeu
       io.emit("gameStarted", {
         playerName: player.name,
       });
 
-      // Démarrer la première manche après un petit délai
       setTimeout(() => {
         startNewRound();
       }, 1000);
     }
   });
 
-  // Fonction pour calculer la distance de Levenshtein
   function levenshteinDistance(str1, str2) {
     const matrix = [];
     const len1 = str1.length;
     const len2 = str2.length;
 
-    // Initialiser la matrice
     for (let i = 0; i <= len2; i++) {
       matrix[i] = [i];
     }
@@ -360,16 +328,15 @@ io.on("connection", (socket) => {
       matrix[0][j] = j;
     }
 
-    // Remplir la matrice
     for (let i = 1; i <= len2; i++) {
       for (let j = 1; j <= len1; j++) {
         if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
           matrix[i][j] = matrix[i - 1][j - 1];
         } else {
           matrix[i][j] = Math.min(
-            matrix[i - 1][j - 1] + 1, // substitution
-            matrix[i][j - 1] + 1, // insertion
-            matrix[i - 1][j] + 1 // deletion
+            matrix[i - 1][j - 1] + 1, 
+            matrix[i][j - 1] + 1, 
+            matrix[i - 1][j] + 1 
           );
         }
       }
@@ -378,12 +345,10 @@ io.on("connection", (socket) => {
     return matrix[len2][len1];
   }
 
-  // Gestion des messages de chat (pour deviner)
   socket.on("chatMessage", (message) => {
     const player = gameState.players.get(socket.id);
     if (!player || !gameState.gameActive) return;
 
-    // Si c'est le dessinateur, ne pas traiter le message
     if (socket.id === gameState.currentDrawer) {
       socket.emit("chatResponse", {
         type: "error",
@@ -395,9 +360,7 @@ io.on("connection", (socket) => {
     const userMessage = message.toLowerCase().trim();
     const targetWord = gameState.currentWord.toLowerCase();
 
-    // Vérifier si le message correspond exactement au mot à deviner
     if (userMessage === targetWord) {
-      // Bonne réponse !
       player.score += 10;
 
       io.emit("chatMessage", {
@@ -412,28 +375,21 @@ io.on("connection", (socket) => {
         score: player.score,
       });
 
-      // Terminer la manche
       endRound("guessed");
     } else {
-      // Vérifier si le mot est proche (1-2 lettres de différence)
       const distance = levenshteinDistance(userMessage, targetWord);
       const wordLength = Math.max(userMessage.length, targetWord.length);
 
-      // Considérer comme "proche" si :
-      // - 1-2 lettres de différence pour les mots de 4+ lettres
-      // - 1 lettre de différence pour les mots de 3 lettres ou moins
       const isClose =
         (wordLength >= 4 && distance <= 2) ||
         (wordLength < 4 && distance === 1);
 
       if (isClose) {
-        // Envoyer un message "presque" seulement au joueur qui a écrit
         socket.emit("almostCorrect", {
           message: "🔥 Presque ! Tu y es presque !",
         });
       }
 
-      // Diffuser le message à tous (même si c'est proche)
       io.emit("chatMessage", {
         playerName: player.name,
         message: message,
@@ -442,21 +398,16 @@ io.on("connection", (socket) => {
     }
   });
 
-  // Gestion du bouton "Prochaine manche"
   socket.on("startNextRound", () => {
     const player = gameState.players.get(socket.id);
     if (!player) return;
 
-    // Vérifier si on est bien en attente d'une nouvelle manche
     if (gameState.waitingForNextRound && gameState.players.size >= 2) {
-      console.log(`🎮 ${player.name} a lancé la prochaine manche`);
 
-      // Informer tous les joueurs qui a lancé la manche
       io.emit("nextRoundStarted", {
         playerName: player.name,
       });
 
-      // Démarrer la nouvelle manche après un petit délai
       setTimeout(() => {
         startNewRound();
       }, 1000);
@@ -464,7 +415,6 @@ io.on("connection", (socket) => {
   });
 
   socket.on("draw", (data) => {
-    // Seul le dessinateur peut dessiner
     if (socket.id === gameState.currentDrawer && gameState.gameActive) {
       drawingHistory.push({ type: "draw", data });
       socket.broadcast.emit("draw", data);
@@ -472,7 +422,6 @@ io.on("connection", (socket) => {
   });
 
   socket.on("draw_line", (data) => {
-    // Seul le dessinateur peut dessiner
     if (socket.id === gameState.currentDrawer && gameState.gameActive) {
       drawingHistory.push({ type: "draw_line", data });
       socket.broadcast.emit("draw_line", data);
@@ -480,7 +429,6 @@ io.on("connection", (socket) => {
   });
 
   socket.on("clear", () => {
-    // Seul le dessinateur peut effacer
     if (socket.id === gameState.currentDrawer && gameState.gameActive) {
       drawingHistory.length = 0;
       io.emit("clear");
@@ -488,25 +436,20 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", () => {
-    console.log("🔴 Un utilisateur est déconnecté");
 
     const player = gameState.players.get(socket.id);
     if (player) {
-      console.log(`👤 ${player.name} a quitté le jeu`);
       gameState.players.delete(socket.id);
 
-      // Si c'était le dessinateur, terminer la manche
       if (socket.id === gameState.currentDrawer) {
         endRound("disconnected");
       }
 
-      // Informer les autres joueurs
       io.emit("playersUpdate", {
         players: Array.from(gameState.players.values()),
         currentDrawer: gameState.currentDrawer,
       });
 
-      // Arrêter le jeu s'il n'y a plus assez de joueurs
       if (gameState.players.size < 2 && gameState.gameActive) {
         gameState.gameActive = false;
         if (gameState.roundTimer) {
@@ -519,7 +462,6 @@ io.on("connection", (socket) => {
         });
       }
 
-      // Informer qu'on ne peut plus démarrer le jeu s'il n'y a pas assez de joueurs
       if (gameState.players.size < 2 && !gameState.gameActive) {
         io.emit("canStartGame", { canStart: false });
       }

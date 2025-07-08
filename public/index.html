@@ -26,7 +26,6 @@
         }
       }
 
-      /* Améliorer l'expérience tactile */
       .touch-none {
         touch-action: none;
       }
@@ -37,7 +36,6 @@
       🎨 Dessiner & Deviner
     </h1>
 
-    <!-- Modal de connexion -->
     <div
       id="joinModal"
       class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
@@ -61,12 +59,9 @@
       </div>
     </div>
 
-    <!-- Interface principale -->
     <div id="gameInterface" class="hidden">
       <div class="flex flex-col lg:flex-row gap-4 lg:gap-6 max-w-7xl mx-auto">
-        <!-- Panneau d'information -->
         <div class="w-full lg:w-80 space-y-4 order-2 lg:order-1">
-          <!-- État du jeu -->
           <div class="bg-white p-3 md:p-4 rounded-lg shadow">
             <h3 class="font-bold text-base md:text-lg mb-2">📊 État du jeu</h3>
             <div id="gameStatus" class="text-gray-600 text-sm md:text-base">
@@ -85,7 +80,6 @@
               class="text-red-500 font-mono text-base md:text-lg mt-2"
             ></div>
 
-            <!-- Bouton pour démarrer le jeu -->
             <button
               id="startGameBtn"
               class="hidden w-full mt-3 bg-blue-500 text-white p-2 md:p-3 rounded text-sm md:text-lg hover:bg-blue-600 font-bold"
@@ -93,7 +87,6 @@
               🎮 Démarrer le jeu
             </button>
 
-            <!-- Bouton pour prochaine manche -->
             <button
               id="nextRoundBtn"
               class="hidden w-full mt-3 bg-green-500 text-white p-2 md:p-3 rounded text-sm md:text-lg hover:bg-green-600 font-bold"
@@ -102,19 +95,15 @@
             </button>
           </div>
 
-          <!-- Liste des joueurs et Chat en grille sur mobile -->
           <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-4">
-            <!-- Liste des joueurs -->
             <div class="bg-white p-3 md:p-4 rounded-lg shadow">
               <h3 class="font-bold text-base md:text-lg mb-2">� Joueurs</h3>
               <div id="playersList" class="space-y-2"></div>
             </div>
 
-            <!-- Chat pour deviner -->
             <div class="bg-white p-3 md:p-4 rounded-lg shadow">
               <h3 class="font-bold text-base md:text-lg mb-2">💬 Chat</h3>
 
-              <!-- Message "presque" -->
               <div
                 id="almostMessage"
                 class="hidden mb-2 p-2 bg-orange-100 border-l-4 border-orange-500 rounded text-sm font-medium text-orange-700"
@@ -144,9 +133,7 @@
           </div>
         </div>
 
-        <!-- Zone de dessin -->
         <div class="flex-1 order-1 lg:order-2">
-          <!-- Outils de dessin -->
           <div class="bg-white p-3 md:p-4 rounded-lg shadow mb-4">
             <div
               class="grid grid-cols-3 md:flex md:flex-wrap gap-2 items-center"
@@ -221,14 +208,12 @@
       const canvas = document.getElementById("canvas");
       const ctx = canvas.getContext("2d");
 
-      // Variables globales
       let drawing = false;
       let currentTool = "pencil";
       let startX, startY;
       let isDrawer = false;
       let gameTimer = null;
 
-      // Fonction pour gérer le canvas responsive
       function resizeCanvas() {
         const container = document.querySelector(".canvas-container");
         const containerWidth = container.clientWidth;
@@ -239,7 +224,7 @@
             containerWidth - 16,
             window.innerWidth - 32
           );
-          const newHeight = (maxWidth * 5) / 8; // Ratio 8:5
+          const newHeight = (maxWidth * 5) / 8; 
 
           canvas.style.width = maxWidth + "px";
           canvas.style.height = newHeight + "px";
@@ -249,7 +234,6 @@
         }
       }
 
-      // Fonction pour obtenir les coordonnées (mouse/touch)
       function getEventPos(e) {
         const rect = canvas.getBoundingClientRect();
         const scaleX = canvas.width / rect.width;
@@ -294,7 +278,6 @@
       const eraserBtn = document.getElementById("eraserBtn");
       const lineBtn = document.getElementById("lineBtn");
 
-      // Rejoindre le jeu
       joinGameBtn.addEventListener("click", () => {
         const name = playerNameInput.value.trim();
         if (name) {
@@ -310,7 +293,6 @@
         }
       });
 
-      // Gestion du chat
       sendChatBtn.addEventListener("click", sendMessage);
       chatInput.addEventListener("keypress", (e) => {
         if (e.key === "Enter") {
@@ -318,14 +300,12 @@
         }
       });
 
-      // Bouton démarrer le jeu
       startGameBtn.addEventListener("click", () => {
         socket.emit("startGame");
         startGameBtn.disabled = true;
         startGameBtn.textContent = "⏳ Démarrage en cours...";
       });
 
-      // Bouton prochaine manche
       nextRoundBtn.addEventListener("click", () => {
         socket.emit("startNextRound");
         nextRoundBtn.disabled = true;
@@ -340,7 +320,6 @@
         }
       }
 
-      // Outils de dessin
       pencilBtn.addEventListener("click", () => {
         currentTool = "pencil";
         updateToolButtons();
@@ -366,7 +345,6 @@
           lineBtn.classList.add("ring-2", "ring-yellow-400");
       }
 
-      // Gestion des événements de dessin (souris et tactile)
       function startDrawing(e) {
         if (!isDrawer) return;
         e.preventDefault();
@@ -444,13 +422,11 @@
         drawing = false;
       }
 
-      // Événements souris
       canvas.addEventListener("mousedown", startDrawing);
       canvas.addEventListener("mousemove", continueDrawing);
       canvas.addEventListener("mouseup", stopDrawing);
       canvas.addEventListener("mouseout", stopDrawing);
 
-      // Événements tactiles
       canvas.addEventListener("touchstart", startDrawing);
       canvas.addEventListener("touchmove", continueDrawing);
       canvas.addEventListener("touchend", stopDrawing);
@@ -463,7 +439,6 @@
         }
       });
 
-      // Fonction pour activer/désactiver les outils
       function enableDrawingTools(enabled) {
         isDrawer = enabled;
         [
@@ -515,7 +490,6 @@
         almostMessage.textContent = message;
         almostMessage.classList.remove("hidden");
 
-        // Masquer le message après 3 secondes
         setTimeout(() => {
           almostMessage.classList.add("hidden");
         }, 3000);
@@ -559,7 +533,6 @@
         }, 1000);
       }
 
-      // Événements Socket.IO
       socket.on("initCanvas", (history) => {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -622,7 +595,6 @@
         currentDrawer.textContent = `🎨 ${data.drawerName} dessine`;
         wordToGuess.textContent = "";
 
-        // Cacher le bouton de prochaine manche et le message "presque"
         nextRoundBtn.classList.add("hidden");
         nextRoundBtn.disabled = false;
         nextRoundBtn.textContent = "🚀 Lancer la prochaine manche";
@@ -631,7 +603,7 @@
         enableDrawingTools(data.drawerId === socket.id);
         enableChat(data.drawerId !== socket.id);
 
-        startTimer(60000); // 60 secondes
+        startTimer(60000); 
 
         addChatMessage(
           "🎮 Système",
@@ -685,7 +657,6 @@
 
         addChatMessage("🎮 Système", message);
 
-        // Afficher le bouton pour la prochaine manche si on attend
         if (data.waitingForNext) {
           nextRoundBtn.classList.remove("hidden");
           addChatMessage(
@@ -739,12 +710,10 @@
         ctx.clearRect(0, 0, canvas.width, canvas.height);
       });
 
-      // Initialisation
       enableDrawingTools(false);
       enableChat(false);
       updateToolButtons();
 
-      // Gérer le redimensionnement du canvas
       resizeCanvas();
       window.addEventListener("resize", resizeCanvas);
       window.addEventListener("orientationchange", () => {
